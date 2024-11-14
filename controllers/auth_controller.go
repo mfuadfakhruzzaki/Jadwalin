@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -100,58 +101,63 @@ func Logout(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
 
-
 // ResetPassword function to allow the user to reset their password
 func ResetPassword(c *gin.Context) {
-	var input struct {
-		Email          string `json:"email"`
-		OldPassword    string `json:"old_password"`
-		NewPassword    string `json:"new_password"`
-		ConfirmPassword string `json:"confirm_password"`
-	}
+    var input struct {
+        Email           string `json:"email" binding:"required,email"`
+        OldPassword     string `json:"old_password" binding:"required"`
+        NewPassword     string `json:"new_password" binding:"required,min=6"`
+        ConfirmPassword string `json:"confirm_password" binding:"required"`
+    }
 
-	// Bind the input JSON to struct
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input"})
-		return
-	}
+    // Bind the input JSON to struct
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
+        return
+    }
 
-	// Validate password confirmation
-	if input.NewPassword != input.ConfirmPassword {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match"})
-		return
-	}
+    // Validate password confirmation
+    if input.NewPassword != input.ConfirmPassword {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Passwords do not match"})
+        return
+    }
 
-	// Find the user by email
-	var user models.User
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving user"})
-		}
-		return
-	}
+    // Find the user by email
+    var user models.User
+    if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
+        if err == gorm.ErrRecordNotFound {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+        } else {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Error retrieving user"})
+        }
+        return
+    }
 
-	// Verify if the old password is correct using VerifyPassword utility
-	if err := utils.VerifyPassword(user.Password, input.OldPassword); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect old password"})
-		return
-	}
+	oldPassword := strings.TrimSpace(input.OldPassword)
 
-	// Hash the new password using EncryptPassword utility
-	hashedPassword, err := utils.EncryptPassword(input.NewPassword)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error hashing new password"})
-		return
-	}
+    // Verify if the old password is correct using VerifyPassword utility
+    err := utils.VerifyPassword(user.Password, oldPassword)
+    if err != nil {
+        // Log error and send response
+		fmt.Printf("Old Password: %s, Password", oldPassword)
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "Incorrect old password"})
+        return
+    }
 
-	// Update the password in the database
-	user.Password = hashedPassword
-	if err := config.DB.Save(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating password"})
-		return
-	}
+    // Hash the new password using EncryptPassword utility
+    hashedPassword, err := utils.EncryptPassword(input.NewPassword)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error hashing new password"})
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
+    // Update the password in the database
+    user.Password = hashedPassword
+    if err := config.DB.Save(&user).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Error updating password"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Password reset successfully"})
 }
+
