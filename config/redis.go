@@ -10,22 +10,35 @@ import (
 
 var RedisClient *redis.Client
 
-func InitRedis() {
-    redisHost := GetEnv("REDIS_HOST", "localhost")
-    redisPort := GetEnv("REDIS_PORT", "6379")
-    redisPassword := GetEnv("REDIS_PASSWORD", "")
+// InitRedis initializes the Redis connection
+func InitRedis() error {
+	redisHost := GetEnv("REDIS_HOST", "localhost")
+	redisPort := GetEnv("REDIS_PORT", "6379")
+	redisPassword := GetEnv("REDIS_PASSWORD", "")
 
-    RedisClient = redis.NewClient(&redis.Options{
-        Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
-        Password: redisPassword,  // kosong jika tidak ada password
-        DB:       0,              // gunakan database default
-    })
+	// Create Redis client
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
+		Password: redisPassword,  // No password if empty
+		DB:       0,              // Use default DB
+	})
 
-    // Cek koneksi ke Redis
-    _, err := RedisClient.Ping(context.Background()).Result()
-    if err != nil {
-        log.Fatal("Redis connection failed:", err)
-    }
+	// Ping Redis to verify the connection
+	_, err := RedisClient.Ping(context.Background()).Result()
+	if err != nil {
+		log.Printf("Error connecting to Redis: %v", err)
+		return err
+	}
 
-    log.Println("Redis connected successfully")
+	log.Println("Successfully connected to Redis")
+	return nil
+}
+
+// CloseRedis properly closes the Redis client connection
+func CloseRedis() {
+	if err := RedisClient.Close(); err != nil {
+		log.Printf("Error closing Redis connection: %v", err)
+	} else {
+		log.Println("Redis connection closed")
+	}
 }

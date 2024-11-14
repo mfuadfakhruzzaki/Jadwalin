@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -13,6 +14,7 @@ func LoadConfig() {
     if err != nil {
         log.Fatal("Error loading .env file")
     }
+    fmt.Println("Successfully loaded .env")
 }
 
 // Untuk mendapatkan variabel lingkungan dari .env
